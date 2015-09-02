@@ -764,6 +764,13 @@ void NavEKF::UpdateFilter()
     SelectTasFusion();
     SelectBetaFusion();
 
+    static uint32_t last_print=0;
+    if (imuSampleTime_ms-last_print > 1000) {
+        ::printf("v %f %f %f\n", state.velocity.x, state.velocity.y, state.velocity.z);
+        ::printf("p %f %f %f\n\n", state.position.x, state.position.y, state.position.z);
+        last_print = imuSampleTime_ms;
+    }
+
     // stop the timer used for load measurement
     perf_end(_perf_UpdateFilter);
 }
@@ -871,9 +878,8 @@ void NavEKF::SelectVelPosFusion()
             fuseVelData = false;
             fusePosData = false;
         }
-    } else if (constPosMode && (fuseHgtData || ((imuSampleTime_ms - lastConstPosFuseTime_ms) > 200))) {
-        // In constant position mode use synthetic position and velocity measurements set to zero whenever we are fusing a height measurement
-        // If no height has been received for 200 msec, then fuse anyway so we have a guaranteed minimum aiding rate equivalent to GPS
+    } else if (constPosMode && imuSampleTime_ms-last_synth_fuse_ms >= msecGpsAvg) {
+        // In constant position mode use synthetic position and velocity measurements set to zero
         // Only fuse synthetic position measurements when rate of change of velocity is less than 0.5g to reduce attitude errors due to launch acceleration
         // Only fuse synthetic velocity measurements when on the ground to reduce attitude errors due to short term manoeuvres
         if (!vehicleArmed) {
@@ -886,8 +892,25 @@ void NavEKF::SelectVelPosFusion()
         } else {
             fusePosData = false;
         }
-        // record the fusion time - used to control fusion rate when there is no baro data
-        lastConstPosFuseTime_ms = imuSampleTime_ms;
+
+        last_synth_fuse_ms = imuSampleTime_ms;
+    } else if (constVelMode && imuSampleTime_ms-last_synth_fuse_ms >= msecGpsAvg) {
+        // In constant velocity mode we fuse the last valid velocity vector
+        // Reset the stored velocity vector when we enter the mode
+        if (constVelMode && !lastConstVelMode) {
+            heldVelNE.x = state.velocity.x;
+            heldVelNE.y = state.velocity.y;
+        }
+        lastConstVelMode = constVelMode;
+        // We do not fuse when manoeuvring to avoid corrupting the attitude
+        if (accNavMag < 4.9f) {
+            fuseVelData = true;
+        } else {
+            fuseVelData = false;
+        }
+        fusePosData = false;
+
+        last_synth_fuse_ms = imuSampleTime_ms;
     } else {
         fuseVelData = false;
         fusePosData = false;
@@ -1900,6 +1923,18 @@ void NavEKF::FuseVelPosNED()
     Vector6 observation;
     float SK;
 
+    static uint32_t lastFusePosData = 0;
+    static uint32_t lastFuseVelData = 0;
+    if (fuseVelData) {
+        ::printf("fvdt %.6f\n", (imuSampleTime_ms-lastFuseVelData)*1.0e-3f);
+        lastFuseVelData = imuSampleTime_ms;
+    }
+
+    if (fusePosData) {
+        ::printf("fpdt %.6f\n", (imuSampleTime_ms-lastFusePosData)*1.0e-3f);
+        lastFusePosData = imuSampleTime_ms;
+    }
+
     // perform sequential fusion of GPS measurements. This assumes that the
     // errors in the different velocity and position components are
     // uncorrelated which is not true, however in the absence of covariance
@@ -1907,7 +1942,6 @@ void NavEKF::FuseVelPosNED()
     // so we might as well take advantage of the computational efficiencies
     // associated with sequential fusion
     if (fuseVelData || fusePosData || fuseHgtData) {
-
         // if constant position or constant velocity mode use the current states to calculate the predicted
         // measurement rather than use states from a previous time. We need to do this
         // because there may be no stored states due to lack of real measurements.
@@ -1984,6 +2018,7 @@ void NavEKF::FuseVelPosNED()
         // calculate innovations and check GPS data validity using an innovation consistency check
         // test position measurements
         if (fusePosData) {
+            ::printf("fp %f %f\n", observation[3], observation[4]);
             // test horizontal position measurements
             innovVelPos[3] = statesAtPosTime.position.x - observation[3];
             innovVelPos[4] = statesAtPosTime.position.y - observation[4];
@@ -2029,6 +2064,7 @@ void NavEKF::FuseVelPosNED()
 
         // test velocity measurements
         if (fuseVelData) {
+            ::printf("fv %f %f\n", observation[0],observation[1]);
             // test velocity measurements
             uint8_t imax = 2;
             if (_fusionModeGPS == 1) {
@@ -4218,7 +4254,7 @@ void NavEKF::readGpsData()
 void NavEKF::readHgtData()
 {
     // check to see if baro measurement has changed so we know if a new measurement has arrived
-    if (_baro.get_last_update() != lastHgtMeasTime) {
+    if (_baro.get_last_update() - lastHgtMeasTime > 100) {
         // Don't use Baro height if operating in optical flow mode as we use range finder instead
         if (_fusionModeGPS == 3 && _altSource == 1) {
             if ((imuSampleTime_ms - rngValidMeaTime_ms) < 2000) {
@@ -4275,7 +4311,7 @@ void NavEKF::readHgtData()
 // check for new magnetometer data and update store measurements if available
 void NavEKF::readMagData()
 {
-    if (use_compass() && _ahrs->get_compass()->last_update_usec() != lastMagUpdate) {
+    if (use_compass() && _ahrs->get_compass()->last_update_usec() - lastMagUpdate > 100000) {
         // store time of last measurement update
         lastMagUpdate = _ahrs->get_compass()->last_update_usec();
 
@@ -4601,7 +4637,7 @@ void NavEKF::InitialiseVariables()
     lastGpsAidBadTime_ms = 0;
     timeAtDisarm_ms = 0;
     magYawResetTimer_ms = imuSampleTime_ms;
-    lastConstPosFuseTime_ms = imuSampleTime_ms;
+    last_synth_fuse_ms = 0;
 
     // initialise other variables
     gpsNoiseScaler = 1.0f;
