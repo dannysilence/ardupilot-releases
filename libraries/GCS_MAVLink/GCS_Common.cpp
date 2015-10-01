@@ -804,6 +804,7 @@ GCS_MAVLINK::handle_gps_inject(const mavlink_message_t *msg, AP_GPS &gps)
 
 }
 
+#ifdef HAL_BOARD_REMOTE_LOG_PORT
 void
 GCS_MAVLINK::handle_remote_log_status(const mavlink_message_t *msg, DataFlash_MAVLink &DataFlash){
     mavlink_remote_log_block_status_t packet;
@@ -814,6 +815,8 @@ GCS_MAVLINK::handle_remote_log_status(const mavlink_message_t *msg, DataFlash_MA
         DataFlash.handle_ack(packet.block_cnt);
     }
 }
+#endif
+
 // send a message using mavlink, handling message queueing
 void GCS_MAVLINK::send_message(enum ap_message id)
 {
