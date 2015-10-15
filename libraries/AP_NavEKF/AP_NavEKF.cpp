@@ -894,23 +894,6 @@ void NavEKF::SelectVelPosFusion()
         }
 
         last_synth_fuse_ms = imuSampleTime_ms;
-    } else if (constVelMode && imuSampleTime_ms-last_synth_fuse_ms >= msecGpsAvg) {
-        // In constant velocity mode we fuse the last valid velocity vector
-        // Reset the stored velocity vector when we enter the mode
-        if (constVelMode && !lastConstVelMode) {
-            heldVelNE.x = state.velocity.x;
-            heldVelNE.y = state.velocity.y;
-        }
-        lastConstVelMode = constVelMode;
-        // We do not fuse when manoeuvring to avoid corrupting the attitude
-        if (accNavMag < 4.9f) {
-            fuseVelData = true;
-        } else {
-            fuseVelData = false;
-        }
-        fusePosData = false;
-
-        last_synth_fuse_ms = imuSampleTime_ms;
     } else {
         fuseVelData = false;
         fusePosData = false;
