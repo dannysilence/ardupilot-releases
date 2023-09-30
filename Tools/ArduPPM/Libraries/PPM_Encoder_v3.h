@@ -1515,7 +1515,6 @@ void ppm_encoder_init( void )
 volatile uint16_t blink_period = 0;
 volatile uint16_t pwm_value = 0;
 uint16_t channels[16];
-uint16_t inputs[16];
 uint8_t sbus_flags;
 
 void decode_sbus(uint8_t *sbusData) {
@@ -1558,7 +1557,7 @@ void check_sbus_package(uint8_t *buffer) {
         uint8_t ch = (~PINC) & 0x0F;
 
         uint16_t pwm_value = get_sbus_value(channels[ch]);
-        inputs[ch] = pwm_value;
+        ppm[ch] = pwm_value;
         UDR0 = (uint8_t) ((channels[0] & 0xFF00) >>8);
         UDR0 = (uint8_t) (channels[0] & 0xFF);
 //        UDR0 = pwm_value;
