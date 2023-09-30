@@ -56,13 +56,13 @@
 #define PPM_REDUNDANCY_MODE   3    // PPM redundancy on channels 1 and 2 if input pins 3&4 shorted
 #define SPEKTRUM_MODE         4    // Spektrum satelitte on channel 1 (reserved - not yet implemented)
 
-volatile uint8_t servo_input_mode = JUMPER_SELECT_MODE;
+volatile uint8_t servo_input_mode = SERVO_PWM_MODE;
 
 // -------------------------------------------------------------
 // PPM REDUNDANCY MODE SETTINGS
 // -------------------------------------------------------------
 
-#define SWITCHOVER_CHANNEL_A		9	// Receiver 1 PPM channel to force receiver 2. Use 0 for no switchover channel
+#define SWITCHOVER_CHANNEL_A		0	// Receiver 1 PPM channel to force receiver 2. Use 0 for no switchover channel
 										// Must be choosed between 6 to 16. Preferabily from 9 to 16 so that APM can use
 										// channels 1 to 8.
 
@@ -70,15 +70,15 @@ volatile uint8_t servo_input_mode = JUMPER_SELECT_MODE;
 #define SWITCHOVER_1_to_2_DELAY_MS		50	// Delay for switching to receiver 2
 #define SWITCHOVER_2_to_1_DELAY_MS		200	// Delay for switching back to receiver 1
 
-#define CHANNEL_COUNT_DETECTION_THRESHOLD	10 // Valid frames detected before channel count validation
+#define CHANNEL_COUNT_DETECTION_THRESHOLD	20 // Valid frames detected before channel count validation
 
 
 // PPM input frame mode receiver 1
 // -------------------------------------------------------------
-#define PPM_CH1_STANDARD			// Standard PPM : 1520 us +/- 600 us - 8 channels - 20 ms frame period
+//#define PPM_CH1_STANDARD			// Standard PPM : 1520 us +/- 600 us - 8 channels - 20 ms frame period
 //#define PPM_CH1_STANDARD_EXTENDED	// 9 channels : 1520 us +/- 600 us - 9 channels - 22.1 ms slower frame period
 //#define PPM_CH1_V2				// PPMv2 : 760 us +/- 300 us - 16 Channels - normal 20 ms frame period
-//#define PPM_CH1_V3				// PPMv3 16 channels with long sync symbol : 1050 us +/- 300 us - 25 ms frame period
+#define PPM_CH1_V3				// PPMv3 16 channels with long sync symbol : 1050 us +/- 300 us - 25 ms frame period
 
 // PPM input frame mode receiver 2
 // -------------------------------------------------------------
@@ -159,7 +159,7 @@ volatile uint8_t servo_input_mode = JUMPER_SELECT_MODE;
 #define PPM_CH1_VAL_MIN         TICKS_FOR_ONE_US * 750
 #define PPM_CH1_VAL_MAX         TICKS_FOR_ONE_US * 1350
 #define PPM_CH1_VAL_CENTER      TICKS_FOR_ONE_US * 1050
-#define PPM_CH1_FORCE_VAL_MIN	1260
+#define PPM_CH1_FORCE_VAL_MIN	900
 
 // PPM channel pre pulse lenght
 #define PPM_CH1_CHANNEL_PREPULSE_LENGHT		400
@@ -256,7 +256,7 @@ volatile uint8_t servo_input_mode = JUMPER_SELECT_MODE;
 // -------------------------------------------------------------
 
 // Number of input PWM channels
-#define PWM_CHANNELS        8
+#define PWM_CHANNELS        16
 
 // PWM channels minimum values
 #define PWM_VAL_MIN         TICKS_FOR_ONE_US * 920 - PPM_PRE_PULSE
@@ -275,7 +275,7 @@ volatile uint8_t servo_input_mode = JUMPER_SELECT_MODE;
 // -------------------------------------------------------------
 
 // Number of output PPM channels
-#define PPM_CHANNELS        8
+#define PPM_CHANNELS        16
 
 // 400us PPM pre pulse
 #define PPM_PRE_PULSE         TICKS_FOR_ONE_US * 400
@@ -315,17 +315,33 @@ volatile uint16_t ppm[ PPM_ARRAY_MAX ] =
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 2
     PPM_PRE_PULSE,
-    PPM_THROTTLE_DEFAULT,     // Channel 3 (throttle)
+    PPM_VAL_CENTER,         // Channel 3 
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 4
     PPM_PRE_PULSE,
-    PPM_CH5_MODE_4,           // Channel 5 (flight mode)
+    PPM_VAL_CENTER,         // Channel 5
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 6
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 7
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 8
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 9
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 10
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 11
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 12
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 13 
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 14
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 15
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 16
     PPM_PRE_PULSE,
     PPM_PERIOD
 };
@@ -334,22 +350,37 @@ volatile uint16_t ppm[ PPM_ARRAY_MAX ] =
 
 const uint16_t failsafe_ppm[ PPM_ARRAY_MAX ] =                               
 {
-    PPM_PRE_PULSE,
-    PPM_VAL_CENTER,         // Channel 1
+    PPM_VAL_CENTER,         // Channel 1 
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 2
     PPM_PRE_PULSE,
-    PPM_THROTTLE_FAILSAFE,    // Channel 3 (throttle)
+    PPM_VAL_CENTER,         // Channel 3 
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 4
     PPM_PRE_PULSE,
-    PPM_CH5_MODE_4,           // Channel 5
+    PPM_VAL_CENTER,         // Channel 5
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 6
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 7
     PPM_PRE_PULSE,
     PPM_VAL_CENTER,         // Channel 8
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 9
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 10
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 11
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 12
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 13 
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 14
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 15
+    PPM_PRE_PULSE,
+    PPM_VAL_CENTER,         // Channel 16
     PPM_PRE_PULSE,
     PPM_PERIOD
 };
@@ -570,7 +601,7 @@ ISR( SERVO_INT_VECTOR )
     static uint8_t servo_pins_old = 0;
 			
 	// PWM Mode pulse start time
-	static uint16_t servo_start[ servo_channel ] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+	static uint16_t servo_start[ servo_channel ] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 		
 	// Missing throttle signal failsafe
 	static uint8_t throttle_timeout = 0;
@@ -1437,7 +1468,7 @@ void ppm_encoder_init( void )
     if( servo_input_mode == SERVO_PWM_MODE )
     {
         // Set servo input interrupt pin mask to all 8 servo input channels
-        SERVO_INT_MASK = 0b11111111;
+        SERVO_INT_MASK = 0xFF;
     }
 
     if( servo_input_mode == PPM_PASSTROUGH_MODE )
