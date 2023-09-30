@@ -1348,6 +1348,77 @@ uint16_t ppm_read_channel( uint8_t channel )
 }
 // ------------------------------------------------------------------------------
 
+void timer0_start(void) {
+
+    TCCR0B |= (1 << CS01);
+    TIMSK0 |= (1 << TOIE0);
+}
+
+#define TIMER_0_PERIOD_US 128
+#define DATA_WAIT_COUNTER (20000 / TIMER_0_PERIOD_US)
+#define BLINK_NO_DATA_PERIOD_MS 1000
+#define SBUS_PACKAGE_SIZE 25
+#define BLINK_PERIOD(BLINK_PERIOD_MS) ((uint16_t)((BLINK_PERIOD_MS) * 1000l / (TIMER_0_PERIOD_US)))
+
+volatile uint16_t blink_period = 0;
+volatile uint16_t pwm_value = 0;
+uint16_t channels[16];
+uint8_t sbus_flags;
+
+void decode_sbus(uint8_t *sbusData) {
+    channels[0] = ((sbusData[1] | sbusData[2] << 8) & 0x07FF);
+    channels[1] = ((sbusData[2] >> 3 | sbusData[3] << 5) & 0x07FF);
+    channels[2] = ((sbusData[3] >> 6 | sbusData[4] << 2 | sbusData[5] << 10) & 0x07FF);
+    channels[3] = ((sbusData[5] >> 1 | sbusData[6] << 7) & 0x07FF);
+    channels[4] = ((sbusData[6] >> 4 | sbusData[7] << 4) & 0x07FF);
+    channels[5] = ((sbusData[7] >> 7 | sbusData[8] << 1 | sbusData[9] << 9) & 0x07FF);
+    channels[6] = ((sbusData[9] >> 2 | sbusData[10] << 6) & 0x07FF);
+    channels[7] = ((sbusData[10] >> 5 | sbusData[11] << 3) & 0x07FF); // & the other 8 + 2 channels if you need them
+    channels[8] = ((sbusData[12] | sbusData[13] << 8) & 0x07FF);
+    channels[9] = ((sbusData[13] >> 3 | sbusData[14] << 5) & 0x07FF);
+    channels[10] = ((sbusData[14] >> 6 | sbusData[15] << 2 | sbusData[16] << 10) & 0x07FF);
+    channels[11] = ((sbusData[16] >> 1 | sbusData[17] << 7) & 0x07FF);
+    channels[12] = ((sbusData[17] >> 4 | sbusData[18] << 4) & 0x07FF);
+    channels[13] = ((sbusData[18] >> 7 | sbusData[19] << 1 | sbusData[20] << 9) & 0x07FF);
+    channels[14] = ((sbusData[20] >> 2 | sbusData[21] << 6) & 0x07FF);
+    channels[15] = ((sbusData[21] >> 5 | sbusData[22] << 3) & 0x07FF);
+
+}
+
+uint8_t rx_buffer[SBUS_PACKAGE_SIZE];
+volatile uint8_t rx_buffer_index;
+
+uint16_t get_sbus_value(uint16_t channel_data){
+    static uint16_t max_value = 0;
+    static uint16_t min_value = 0xFFFF;
+    if(channel_data>max_value) max_value = channel_data;
+    if(channel_data<min_value) min_value = channel_data;
+
+    return (uint16_t )(256.0 * (channel_data-min_value) / (max_value-min_value));
+
+}
+
+void check_sbus_package(uint8_t *buffer) {
+    if (buffer[0] == 0x0F) {
+        blink_period = BLINK_PERIOD(0);
+        decode_sbus(buffer);
+        uint8_t ch = (~PINC) & 0x0F;
+
+        uint16_t pwm_value = get_sbus_value(channels[ch]);
+        ppm[ch] = pwm_value;
+        UDR0 = (uint8_t) ((channels[0] & 0xFF00) >>8);
+        UDR0 = (uint8_t) (channels[0] & 0xFF);
+//        UDR0 = pwm_value;
+    } else {
+        blink_period = BLINK_PERIOD(100);
+        UDR0 = 0xAA;
+        UDR0 = buffer[0];
+    }
+
+}
+
+#define BLINK_OFF {PORTB &= ~_BV(PB5);}
+
 // ------------------------------------------------------------------------------
 // PPM ENCODER INIT
 // ------------------------------------------------------------------------------
@@ -1467,8 +1538,10 @@ void ppm_encoder_init( void )
     // ------------------------------------------------------------------------------
     if( servo_input_mode == SERVO_PWM_MODE )
     {
-        // Set servo input interrupt pin mask to all 8 servo input channels
-        SERVO_INT_MASK = 0xFF;
+        // Set servo input interrupt pin mask to all 0 servo input channels
+        SERVO_INT_MASK = 0x00;
+
+        timer0_start();
     }
 
     if( servo_input_mode == PPM_PASSTROUGH_MODE )
@@ -1482,7 +1555,7 @@ void ppm_encoder_init( void )
         SERVO_INT_MASK = 0b00000011;
     }
 	// Enable servo input interrupt
-    PCICR |= (1 << SERVO_INT_ENABLE);
+    // PCICR |= (1 << SERVO_INT_ENABLE);
 
     // PPM OUTPUT PIN
     // ------------------------------------------------------------------------------
@@ -1500,76 +1573,15 @@ void ppm_encoder_init( void )
     WDTCSR |= (1<<WDCE) | (1<<WDE );
     // Set 250 ms watchdog timeout and enable interrupt
     WDTCSR = (1<<WDIE) | (1<<WDP2);
-	
-	
-	
+
+    /*
+    DDRB = _BV(PB5);
+    DDRD = _BV(PD2);
+    DDRC = 0;
+    PORTC = 0xFF;
+    */
 }
 // ------------------------------------------------------------------------------
-
-#define TIMER_0_PERIOD_US 128
-#define DATA_WAIT_COUNTER (20000 / TIMER_0_PERIOD_US)
-#define BLINK_NO_DATA_PERIOD_MS 1000
-#define SBUS_PACKAGE_SIZE 25
-#define BLINK_PERIOD(BLINK_PERIOD_MS) ((uint16_t)((BLINK_PERIOD_MS) * 1000l / (TIMER_0_PERIOD_US)))
-
-volatile uint16_t blink_period = 0;
-volatile uint16_t pwm_value = 0;
-uint16_t channels[16];
-uint8_t sbus_flags;
-
-void decode_sbus(uint8_t *sbusData) {
-    channels[0] = ((sbusData[1] | sbusData[2] << 8) & 0x07FF);
-    channels[1] = ((sbusData[2] >> 3 | sbusData[3] << 5) & 0x07FF);
-    channels[2] = ((sbusData[3] >> 6 | sbusData[4] << 2 | sbusData[5] << 10) & 0x07FF);
-    channels[3] = ((sbusData[5] >> 1 | sbusData[6] << 7) & 0x07FF);
-    channels[4] = ((sbusData[6] >> 4 | sbusData[7] << 4) & 0x07FF);
-    channels[5] = ((sbusData[7] >> 7 | sbusData[8] << 1 | sbusData[9] << 9) & 0x07FF);
-    channels[6] = ((sbusData[9] >> 2 | sbusData[10] << 6) & 0x07FF);
-    channels[7] = ((sbusData[10] >> 5 | sbusData[11] << 3) & 0x07FF); // & the other 8 + 2 channels if you need them
-    channels[8] = ((sbusData[12] | sbusData[13] << 8) & 0x07FF);
-    channels[9] = ((sbusData[13] >> 3 | sbusData[14] << 5) & 0x07FF);
-    channels[10] = ((sbusData[14] >> 6 | sbusData[15] << 2 | sbusData[16] << 10) & 0x07FF);
-    channels[11] = ((sbusData[16] >> 1 | sbusData[17] << 7) & 0x07FF);
-    channels[12] = ((sbusData[17] >> 4 | sbusData[18] << 4) & 0x07FF);
-    channels[13] = ((sbusData[18] >> 7 | sbusData[19] << 1 | sbusData[20] << 9) & 0x07FF);
-    channels[14] = ((sbusData[20] >> 2 | sbusData[21] << 6) & 0x07FF);
-    channels[15] = ((sbusData[21] >> 5 | sbusData[22] << 3) & 0x07FF);
-
-}
-
-uint8_t rx_buffer[SBUS_PACKAGE_SIZE];
-volatile uint8_t rx_buffer_index;
-
-uint16_t get_sbus_value(uint16_t channel_data){
-    static uint16_t max_value = 0;
-    static uint16_t min_value = 0xFFFF;
-    if(channel_data>max_value) max_value = channel_data;
-    if(channel_data<min_value) min_value = channel_data;
-
-    return (uint16_t )(256.0 * (channel_data-min_value) / (max_value-min_value));
-
-}
-
-void check_sbus_package(uint8_t *buffer) {
-    if (buffer[0] == 0x0F) {
-        blink_period = BLINK_PERIOD(0);
-        decode_sbus(buffer);
-        uint8_t ch = (~PINC) & 0x0F;
-
-        uint16_t pwm_value = get_sbus_value(channels[ch]);
-        ppm[ch] = pwm_value;
-        UDR0 = (uint8_t) ((channels[0] & 0xFF00) >>8);
-        UDR0 = (uint8_t) (channels[0] & 0xFF);
-//        UDR0 = pwm_value;
-    } else {
-        blink_period = BLINK_PERIOD(100);
-        UDR0 = 0xAA;
-        UDR0 = buffer[0];
-    }
-
-}
-
-#define BLINK_OFF {PORTB &= ~_BV(PB5);}
 
 
 #endif // _PPM_ENCODER_H_
