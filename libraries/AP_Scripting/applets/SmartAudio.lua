@@ -24,11 +24,10 @@
 
 -- init local variables
 local startup_pwr = param:get('SCR_USER1') 
+local startup_fre = param:get('SCR_USER2') 
 local scripting_rc = rc:find_channel_for_option(300)
 local port = serial:find_serial(0)
 local _current_power = -1
-local _current_freq = -1
-local _current_channel = -1
 
 -- hexadecimal smart audio 2.0 commands
 local power_commands = {}
@@ -164,6 +163,13 @@ function init()
       _current_power = get_power()
     end
   end
+
+  if startup_fre then -- make sure we found the param
+    if startup_fre >= 5000 and startup_fre <= 6000 then
+      setFrequency(startup_fre)
+    end
+  end
+    
   return update, 500
 end
 
