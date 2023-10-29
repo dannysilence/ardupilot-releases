@@ -25,6 +25,8 @@ local startup_pwr = param:get('SCR_USER1')
 local scripting_rc = rc:find_channel_for_option(300)
 local port = serial:find_serial(0)
 local _current_power = -1
+local _current_freq = -1
+local _current_channel = -1
 
 -- hexadecimal smart audio 2.0 commands
 local power_commands = {}
@@ -33,6 +35,68 @@ power_commands[2] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x00,0x6B,0x00}, "VTX PWR L
 power_commands[3] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x01,0xBE,0x00}, "VTX PWR MED" } -- SMARTAUDIO_V2_COMMAND_POWER_1
 power_commands[4] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x02,0x14,0x00}, "VTX PWR HIGH" } -- SMARTAUDIO_V2_COMMAND_POWER_2
 power_commands[5] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x03,0xC1,0x00}, "VTX PWR MAX" } -- SMARTAUDIO_V2_COMMAND_POWER_3
+power_commands[6] = { {0x00,0x00,0xAA,0x55,0x03,0x00,0x00,0x00,0x00}, "VTX Get Settings" } -- SMARTAUDIO_V2_GET_SETTING
+
+
+-- returns setting value ; 0 - channel, 1 - frequency, 2 - version. returns -1 in case of read failure 
+function getSetting(setting)
+  updateSerial(power_commands[6][1])
+  gcs:send_text(4, power_commands[6][2])
+
+  local a = -1
+    
+  for count = 1, 12 do
+    local b = port:read()
+    if a == -1 then
+      if b == 0xAA then
+        a = count   
+      end
+    else
+      if setting == 0 and count - a == 4 then
+        return b
+      end
+
+      if setting == 1 and count - a == 6 then
+        local c = port:read()
+
+        return b * 0x100 + c
+      end
+
+      if setting == 0 and count - a == 2 then
+        if b == 0x01 then 
+          return 1
+        end
+
+        if b == 0x09 then
+          return 2
+        end
+
+        return -1
+      end
+    end
+
+    return -1
+  end
+end
+
+-- set the frequency in the range 5000-6000 MHz
+function setFrequency(frequency)
+  a = frequency / 0x100
+  b = frequency % 0x100
+  c = { {0x00,0x00,0xAA,0x55,0x09,0x02,a,b,0x00}, "VTX Frequency" } 
+  updateSerial(c[1])
+  gcs:send_text(4, c[2])
+  _current_freq = frequency 
+end
+
+-- set the channel in the range 0-40
+function setChannel(channel)
+  a = frequency / 0x100
+  b = { {0x00,0x00,0xAA,0x55,0x07,0x01,a,0x00,0x00}, "VTX Channel" } 
+  updateSerial(b[1])
+  gcs:send_text(4, b[2])
+  _current_channel = channel
+end
 
 
 -- return a power level from 1 to 5 as set with a switch
