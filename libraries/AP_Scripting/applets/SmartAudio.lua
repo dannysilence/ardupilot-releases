@@ -86,14 +86,15 @@ end
 -- set the frequency in the range 5000-6000 MHz
 -- Example: 0xAA 0x55 0x09(Command 4) 0x02(Length) 0x16 0xE9(Frequency 5865) 0xDC(CRC8
 function setFrequency(frequency)
-  a = frequency / 0x100
+  a = frequency // 0x100
   b = frequency % 0x100
   c = { {0x00,0x00,0xAA,0x55,0x09,0x02,a,b,0x00}, "VTX Frequency ${frequency}" } 
   updateSerial(c[1])
   gcs:send_text(4, c[2])
-  _current_freq = frequency 
 
-  -- TODO Add comparison between value being set and the one returned in getSetting response 
+  local x = getSetting(1)  
+  local y = "VTX Actual Frequency: ${x}"
+  gcs:send_text(4, y)
 end
 
 -- set the channel in the range 0-40
@@ -102,9 +103,10 @@ function setChannel(channel)
   b = { {0x00,0x00,0xAA,0x55,0x07,0x01,channel,0x00,0x00}, "VTX Channel ${channel}" } 
   updateSerial(b[1])
   gcs:send_text(4, b[2])
-  _current_channel = channel
     
-  -- TODO Add comparison between value being set and the one returned in getSetting response
+  local x = getSetting(0)
+  local y = "VTX Actual Channel: ${x}"
+  gcs:send_text(4, y)
 end
 
 
