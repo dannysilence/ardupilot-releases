@@ -25,6 +25,7 @@
 -- init local variables
 local startup_pwr = param:get('SCR_USER1') 
 local startup_fre = param:get('SCR_USER2') 
+local startup_chn = param:get('SCR_USER3') 
 local scripting_rc = rc:find_channel_for_option(300)
 local port = serial:find_serial(0)
 local _current_power = -1
@@ -87,7 +88,7 @@ end
 function setFrequency(frequency)
   a = frequency // 0x100
   b = frequency % 0x100
-  c = { {0x00,0x00,0xAA,0x55,0x09,0x02,a,b,0x00}, "VTX Frequency ${frequency}" } 
+  c = { {0x00,0x00,0xAA,0x55,0x09,0x02,a,b,0x00}, "VTX Frequency: ${frequency}" } 
   updateSerial(c[1])
   gcs:send_text(4, c[2])
 
@@ -99,7 +100,7 @@ end
 -- set the channel in the range 0-40
 -- Example: 0xAA 0x55 0x07(Command 3) 0x01(Length) 0x00(All 40 Channels 0-40) 0xB8(CRC8
 function setChannel(channel)
-  b = { {0x00,0x00,0xAA,0x55,0x07,0x01,channel,0x00,0x00}, "VTX Channel ${channel}" } 
+  b = { {0x00,0x00,0xAA,0x55,0x07,0x01,channel,0x00,0x00}, "VTX Channel: ${channel}" } 
   updateSerial(b[1])
   gcs:send_text(4, b[2])
     
@@ -167,6 +168,12 @@ function init()
   if startup_fre then -- make sure we found the param
     if startup_fre >= 5000 and startup_fre <= 6000 then
       setFrequency(startup_fre)
+    end
+  end
+
+  if startup_chn then -- make sure we found the param
+    if startup_chn >= 0 and startup_chn <= 40 then
+      setChannel(startup_chn)
     end
   end
     
