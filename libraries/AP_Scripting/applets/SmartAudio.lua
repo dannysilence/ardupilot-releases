@@ -19,6 +19,8 @@
 -- 2. Setup an rc channel's RXc_OPTION to 300 for changing power and SCR_USER1 parameter for initial power upon boot
 ---------and set to -1 for unchanged, 0 (PitMode),1,2,3, or 4 for power level (1 lowest,4 maximum)
 -- 3. Attach the UART's TX for the Serial port chosen above to the VTX's SmartAudio input
+-- 4. Other SmartAudio commands structure from https://www.team-blacksheep.com/media/files/tbs_smartaudio_rev08.pdf
+
 
 -- init local variables
 local startup_pwr = param:get('SCR_USER1') 
@@ -35,10 +37,12 @@ power_commands[2] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x00,0x6B,0x00}, "VTX PWR L
 power_commands[3] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x01,0xBE,0x00}, "VTX PWR MED" } -- SMARTAUDIO_V2_COMMAND_POWER_1
 power_commands[4] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x02,0x14,0x00}, "VTX PWR HIGH" } -- SMARTAUDIO_V2_COMMAND_POWER_2
 power_commands[5] = { {0x00,0x00,0xAA,0x55,0x05,0x01,0x03,0xC1,0x00}, "VTX PWR MAX" } -- SMARTAUDIO_V2_COMMAND_POWER_3
-power_commands[6] = { {0x00,0x00,0xAA,0x55,0x03,0x00,0x00,0x00,0x00}, "VTX Get Settings" } -- SMARTAUDIO_V2_GET_SETTING
+power_commands[6] = { {0x00,0x00,0xAA,0x55,0x03,0x00,0x00,0x00,0x00}, "VTX Get Settings" } -- SMARTAUDIO_GET_SETTING
 
 
 -- returns setting value ; 0 - channel, 1 - frequency, 2 - version. returns -1 in case of read failure 
+-- SmartAudio V1 response: VTX: 0xAA 0x55 0x01 (Version/Command) 0x06 (Length) 0x00 (Channel) 0x00 (Power Level) 0x01(OperationMode) 0x16 0xE9(Current Frequency 5865) 0x4D(CRC8)
+-- SmartAudio V2 response: VTX: 0xAA 0x55 0x09 (Version/Command) 0x06 (Length) 0x01 (Channel) 0x00 (Power Level) 0x1A(OperationMode) 0x16 0xE9(Current Frequency 5865) 0xDA(CRC
 function getSetting(setting)
   updateSerial(power_commands[6][1])
   gcs:send_text(4, power_commands[6][2])
@@ -80,22 +84,27 @@ function getSetting(setting)
 end
 
 -- set the frequency in the range 5000-6000 MHz
+-- Example: 0xAA 0x55 0x09(Command 4) 0x02(Length) 0x16 0xE9(Frequency 5865) 0xDC(CRC8
 function setFrequency(frequency)
   a = frequency / 0x100
   b = frequency % 0x100
-  c = { {0x00,0x00,0xAA,0x55,0x09,0x02,a,b,0x00}, "VTX Frequency" } 
+  c = { {0x00,0x00,0xAA,0x55,0x09,0x02,a,b,0x00}, "VTX Frequency ${frequency}" } 
   updateSerial(c[1])
   gcs:send_text(4, c[2])
   _current_freq = frequency 
+
+  -- TODO Add comparison between value being set and the one returned in getSetting response 
 end
 
 -- set the channel in the range 0-40
+-- Example: 0xAA 0x55 0x07(Command 3) 0x01(Length) 0x00(All 40 Channels 0-40) 0xB8(CRC8
 function setChannel(channel)
-  a = frequency / 0x100
-  b = { {0x00,0x00,0xAA,0x55,0x07,0x01,a,0x00,0x00}, "VTX Channel" } 
+  b = { {0x00,0x00,0xAA,0x55,0x07,0x01,channel,0x00,0x00}, "VTX Channel ${channel}" } 
   updateSerial(b[1])
   gcs:send_text(4, b[2])
   _current_channel = channel
+    
+  -- TODO Add comparison between value being set and the one returned in getSetting response
 end
 
 
